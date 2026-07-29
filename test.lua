@@ -1,235 +1,115 @@
--- POV Checker 70° - Shows for ALL Players (Based on Head)
--- Fixed version - Delta Optimized
+-- Delta Animation ID Capturer
+-- Captures unique animation IDs for player: senjmwua
+-- Skips duplicate IDs automatically
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
+local player = game.Players["senjmwua"]
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
 
-local FOV_ANGLE = 70
-local VISUAL_DISTANCE = 10
+local capturedAnimations = {}
+local animTracker = {}
 
-local folder = Instance.new("Folder")
-folder.Name = "POVVisuals_AllPlayers"
-folder.Parent = Workspace
-
-local playerVisuals = {}
-
-local function createPlayerVisuals()
-    local visuals = {
-        fanLines = {},
-        boundaryLeft = nil,
-        boundaryRight = nil,
-        arcParts = {},
-        centerDot = nil
-    }
+-- Function to capture animation ID
+local function captureAnimationId(animTrack)
+    if not animTrack then return end
     
-    for i = 1, 13 do
-        local line = Instance.new("Part")
-        line.Size = Vector3.new(0.1, 0.05, 1)
-        line.Anchored = true
-        line.CanCollide = false
-        line.Transparency = 0.3 + (i/13) * 0.2
-        line.Material = Enum.Material.Neon
-        line.BrickColor = BrickColor.new("Bright red")
-        line.Parent = folder
-        table.insert(visuals.fanLines, line)
+    -- Get animation ID from the track
+    local animation = animTrack.Animation
+    if not animation then return end
+    
+    local animationId = animation.AnimationId
+    if not animationId or animationId == "" then return end
+    
+    -- Extract just the ID number if full URL
+    local id = animationId:match("rbxassetid://(%d+)") or animationId
+    
+    -- Check if already captured
+    if not capturedAnimations[id] then
+        capturedAnimations[id] = {
+            id = id,
+            fullId = animationId,
+            firstCaptured = os.time(),
+            track = animTrack
+        }
+        
+        print(string.format("[NEW ANIMATION] ID: %s", id))
+        print(string.format("Full URL: %s", animationId))
+        print("---")
+        
+        -- Optional: Log to a table for later use
+        table.insert(animTracker, {
+            id = id,
+            timestamp = os.time(),
+            player = player.Name
+        })
     end
-    
-    local function createBoundary()
-        local part = Instance.new("Part")
-        part.Size = Vector3.new(0.15, 0.05, 10)
-        part.Anchored = true
-        part.CanCollide = false
-        part.Transparency = 0.3
-        part.Material = Enum.Material.Neon
-        part.BrickColor = BrickColor.new("Bright red")
-        part.Parent = folder
-        return part
-    end
-    
-    visuals.boundaryLeft = createBoundary()
-    visuals.boundaryRight = createBoundary()
-    
-    for i = 1, 7 do
-        local arc = Instance.new("Part")
-        arc.Size = Vector3.new(0.1, 0.05, 0.5)
-        arc.Anchored = true
-        arc.CanCollide = false
-        arc.Transparency = 0.35
-        arc.Material = Enum.Material.Neon
-        arc.BrickColor = BrickColor.new("Bright red")
-        arc.Parent = folder
-        table.insert(visuals.arcParts, arc)
-    end
-    
-    local dot = Instance.new("Part")
-    dot.Size = Vector3.new(0.3, 0.05, 0.3)
-    dot.Anchored = true
-    dot.CanCollide = false
-    dot.Transparency = 0.2
-    dot.Material = Enum.Material.Neon
-    dot.BrickColor = BrickColor.new("White")
-    dot.Shape = Enum.PartType.Ball
-    dot.Parent = folder
-    visuals.centerDot = dot
-    
-    return visuals
 end
 
-local function updatePlayerVisuals(player)
-    local character = player.Character
-    if not character then 
-        if playerVisuals[player] then
-            for _, line in ipairs(playerVisuals[player].fanLines) do
-                line.Transparency = 1
-            end
-            playerVisuals[player].boundaryLeft.Transparency = 1
-            playerVisuals[player].boundaryRight.Transparency = 1
-            for _, arc in ipairs(playerVisuals[player].arcParts) do
-                arc.Transparency = 1
-            end
-            playerVisuals[player].centerDot.Transparency = 1
-        end
+-- Hook into animation played event
+humanoid.AnimationPlayed:Connect(function(animTrack)
+    captureAnimationId(animTrack)
+end)
+
+-- Also check for already playing animations
+for _, animTrack in pairs(humanoid.Animator:GetPlayingAnimationTracks()) do
+    captureAnimationId(animTrack)
+end
+
+-- Monitor new animations being loaded
+local function onAnimationAdded(animator, animationTrack)
+    task.wait(0.1) -- Small delay to ensure proper loading
+    captureAnimationId(animationTrack)
+end
+
+humanoid.Animator.AnimationTrackAdded:Connect(onAnimationAdded)
+
+-- Print summary function
+function printCapturedAnimations()
+    print(string.format("\n=== CAPTURED ANIMATION IDs (%d) ===", #animTracker))
+    for i, data in ipairs(animTracker) do
+        print(string.format("%d. ID: %s", i, data.id))
+    end
+    print("====================================\n")
+end
+
+-- Auto-save to a file (if in a plugin or script context)
+function saveAnimationsToFile()
+    if not game:IsStudio() then 
+        print("Auto-save only works in Studio")
         return 
     end
     
-    local head = character:FindFirstChild("Head")
-    local rootPart = character:FindFirstChild("HumanoidRootPart")
-    if not head or not rootPart then return end
-    
-    if not playerVisuals[player] then
-        playerVisuals[player] = createPlayerVisuals()
+    local json = game:GetService("HttpService"):JSONEncode(animTracker)
+    local file = io.open("captured_animations.json", "w")
+    if file then
+        file:write(json)
+        file:close()
+        print("Saved animations to captured_animations.json")
     end
-    
-    local visuals = playerVisuals[player]
-    
-    -- FIXED: Use a separate variable for the loop
-    for index, line in ipairs(visuals.fanLines) do
-        line.Transparency = 0.3 + (index/13) * 0.2
-    end
-    visuals.boundaryLeft.Transparency = 0.3
-    visuals.boundaryRight.Transparency = 0.3
-    for _, arc in ipairs(visuals.arcParts) do
-        arc.Transparency = 0.35
-    end
-    visuals.centerDot.Transparency = 0.2
-    
-    local rootPos = rootPart.Position
-    local headCFrame = head.CFrame
-    local lookVector = headCFrame.LookVector
-    
-    local groundPos = rootPos - Vector3.new(0, 2, 0)
-    
-    local flatLook = Vector3.new(lookVector.X, 0, lookVector.Z).Unit
-    if flatLook.Magnitude < 0.001 then return end
-    
-    local centerAngle = math.atan2(flatLook.X, flatLook.Z)
-    local angleOffset = math.rad(FOV_ANGLE/2)
-    local distance = VISUAL_DISTANCE
-    
-    for i, line in ipairs(visuals.fanLines) do
-        local t = (i - 1) / (#visuals.fanLines - 1)
-        local angle = centerAngle - angleOffset + (t * angleOffset * 2)
-        
-        local endPos = groundPos + Vector3.new(
-            math.sin(angle) * distance,
-            0.05,
-            math.cos(angle) * distance
-        )
-        
-        local midPoint = (groundPos + endPos) / 2
-        local direction = (endPos - groundPos).Unit
-        local length = (endPos - groundPos).Magnitude
-        
-        line.CFrame = CFrame.lookAt(midPoint, midPoint + direction)
-        line.Size = Vector3.new(0.1, 0.05, length)
-    end
-    
-    local leftAngle = centerAngle - angleOffset
-    local rightAngle = centerAngle + angleOffset
-    
-    local leftEnd = groundPos + Vector3.new(
-        math.sin(leftAngle) * distance,
-        0.05,
-        math.cos(leftAngle) * distance
-    )
-    local rightEnd = groundPos + Vector3.new(
-        math.sin(rightAngle) * distance,
-        0.05,
-        math.cos(rightAngle) * distance
-    )
-    
-    local leftMid = (groundPos + leftEnd) / 2
-    local rightMid = (groundPos + rightEnd) / 2
-    
-    visuals.boundaryLeft.CFrame = CFrame.lookAt(leftMid, leftMid + (leftEnd - groundPos).Unit)
-    visuals.boundaryLeft.Size = Vector3.new(0.15, 0.05, (leftEnd - groundPos).Magnitude)
-    
-    visuals.boundaryRight.CFrame = CFrame.lookAt(rightMid, rightMid + (rightEnd - groundPos).Unit)
-    visuals.boundaryRight.Size = Vector3.new(0.15, 0.05, (rightEnd - groundPos).Magnitude)
-    
-    for i, arc in ipairs(visuals.arcParts) do
-        local t = (i - 1) / (#visuals.arcParts - 1)
-        local angle = leftAngle + (t * angleOffset * 2)
-        
-        local arcPos = groundPos + Vector3.new(
-            math.sin(angle) * distance,
-            0.05,
-            math.cos(angle) * distance
-        )
-        
-        arc.CFrame = CFrame.new(arcPos)
-        arc.Size = Vector3.new(0.1, 0.05, 0.5)
-        
-        if i < #visuals.arcParts then
-            local nextT = (i) / (#visuals.arcParts - 1)
-            local nextAngle = leftAngle + (nextT * angleOffset * 2)
-            local nextPos = groundPos + Vector3.new(
-                math.sin(nextAngle) * distance,
-                0.05,
-                math.cos(nextAngle) * distance
-            )
-            local dir = (nextPos - arcPos).Unit
-            if dir.Magnitude > 0 then
-                arc.CFrame = CFrame.lookAt(arcPos, arcPos + dir)
-            end
+end
+
+-- Print captured IDs every 10 seconds
+task.spawn(function()
+    while task.wait(10) do
+        if #animTracker > 0 then
+            print(string.format("Captured %d unique animation IDs so far", #animTracker))
         end
     end
-    
-    local dotPos = groundPos + Vector3.new(flatLook.X * 5, 0.05, flatLook.Z * 5)
-    visuals.centerDot.CFrame = CFrame.new(dotPos)
-end
+end)
 
-local function updateAllPlayers()
-    for _, player in ipairs(Players:GetPlayers()) do
-        updatePlayerVisuals(player)
+print("Delta Animation ID Capturer initialized for player: " .. player.Name)
+print("Listening for animation changes...")
+
+-- Keybind: Press F5 to print all captured IDs
+game:GetService("UserInputService").InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.F5 and input.UserInputType == Enum.UserInputType.Keyboard then
+        printCapturedAnimations()
     end
-end
+end)
 
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        wait(0.1)
-        updatePlayerVisuals(player)
+-- Auto-save on exit (Studio only)
+if game:IsStudio() then
+    game:BindToClose(function()
+        saveAnimationsToFile()
     end)
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-    if playerVisuals[player] then
-        for _, line in ipairs(playerVisuals[player].fanLines) do
-            line:Destroy()
-        end
-        playerVisuals[player].boundaryLeft:Destroy()
-        playerVisuals[player].boundaryRight:Destroy()
-        for _, arc in ipairs(playerVisuals[player].arcParts) do
-            arc:Destroy()
-        end
-        playerVisuals[player].centerDot:Destroy()
-        playerVisuals[player] = nil
-    end
-end)
-
-RunService.Heartbeat:Connect(function()
-    updateAllPlayers()
-end)
-
-print("✅ 70° POV Fan showing for ALL players!")
+end
