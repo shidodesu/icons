@@ -1,23 +1,19 @@
 -- POV Checker 70° - Shows for ALL Players (Based on Head)
--- Delta Optimized
+-- Fixed version - Delta Optimized
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
--- Configuration
 local FOV_ANGLE = 70
 local VISUAL_DISTANCE = 10
 
--- Create folder for visuals
 local folder = Instance.new("Folder")
 folder.Name = "POVVisuals_AllPlayers"
 folder.Parent = Workspace
 
--- Store visuals per player
 local playerVisuals = {}
 
--- Function to create fan visuals for a player
 local function createPlayerVisuals()
     local visuals = {
         fanLines = {},
@@ -27,7 +23,6 @@ local function createPlayerVisuals()
         centerDot = nil
     }
     
-    -- Create fan lines
     for i = 1, 13 do
         local line = Instance.new("Part")
         line.Size = Vector3.new(0.1, 0.05, 1)
@@ -40,7 +35,6 @@ local function createPlayerVisuals()
         table.insert(visuals.fanLines, line)
     end
     
-    -- Create boundaries
     local function createBoundary()
         local part = Instance.new("Part")
         part.Size = Vector3.new(0.15, 0.05, 10)
@@ -56,7 +50,6 @@ local function createPlayerVisuals()
     visuals.boundaryLeft = createBoundary()
     visuals.boundaryRight = createBoundary()
     
-    -- Create arc
     for i = 1, 7 do
         local arc = Instance.new("Part")
         arc.Size = Vector3.new(0.1, 0.05, 0.5)
@@ -69,7 +62,6 @@ local function createPlayerVisuals()
         table.insert(visuals.arcParts, arc)
     end
     
-    -- Center dot
     local dot = Instance.new("Part")
     dot.Size = Vector3.new(0.3, 0.05, 0.3)
     dot.Anchored = true
@@ -84,11 +76,9 @@ local function createPlayerVisuals()
     return visuals
 end
 
--- Function to update a player's visuals
 local function updatePlayerVisuals(player)
     local character = player.Character
     if not character then 
-        -- Hide visuals if character doesn't exist
         if playerVisuals[player] then
             for _, line in ipairs(playerVisuals[player].fanLines) do
                 line.Transparency = 1
@@ -103,21 +93,19 @@ local function updatePlayerVisuals(player)
         return 
     end
     
-    -- Get head and root
     local head = character:FindFirstChild("Head")
     local rootPart = character:FindFirstChild("HumanoidRootPart")
     if not head or not rootPart then return end
     
-    -- Get visuals for this player, create if doesn't exist
     if not playerVisuals[player] then
         playerVisuals[player] = createPlayerVisuals()
     end
     
     local visuals = playerVisuals[player]
     
-    -- Make visuals visible
-    for _, line in ipairs(visuals.fanLines) do
-        line.Transparency = 0.3 + (i/13) * 0.2
+    -- FIXED: Use a separate variable for the loop
+    for index, line in ipairs(visuals.fanLines) do
+        line.Transparency = 0.3 + (index/13) * 0.2
     end
     visuals.boundaryLeft.Transparency = 0.3
     visuals.boundaryRight.Transparency = 0.3
@@ -130,10 +118,8 @@ local function updatePlayerVisuals(player)
     local headCFrame = head.CFrame
     local lookVector = headCFrame.LookVector
     
-    -- Ground position
     local groundPos = rootPos - Vector3.new(0, 2, 0)
     
-    -- Flat look direction
     local flatLook = Vector3.new(lookVector.X, 0, lookVector.Z).Unit
     if flatLook.Magnitude < 0.001 then return end
     
@@ -141,7 +127,6 @@ local function updatePlayerVisuals(player)
     local angleOffset = math.rad(FOV_ANGLE/2)
     local distance = VISUAL_DISTANCE
     
-    -- Update fan lines
     for i, line in ipairs(visuals.fanLines) do
         local t = (i - 1) / (#visuals.fanLines - 1)
         local angle = centerAngle - angleOffset + (t * angleOffset * 2)
@@ -160,7 +145,6 @@ local function updatePlayerVisuals(player)
         line.Size = Vector3.new(0.1, 0.05, length)
     end
     
-    -- Update boundaries
     local leftAngle = centerAngle - angleOffset
     local rightAngle = centerAngle + angleOffset
     
@@ -184,7 +168,6 @@ local function updatePlayerVisuals(player)
     visuals.boundaryRight.CFrame = CFrame.lookAt(rightMid, rightMid + (rightEnd - groundPos).Unit)
     visuals.boundaryRight.Size = Vector3.new(0.15, 0.05, (rightEnd - groundPos).Magnitude)
     
-    -- Update arc
     for i, arc in ipairs(visuals.arcParts) do
         local t = (i - 1) / (#visuals.arcParts - 1)
         local angle = leftAngle + (t * angleOffset * 2)
@@ -213,19 +196,16 @@ local function updatePlayerVisuals(player)
         end
     end
     
-    -- Update center dot
     local dotPos = groundPos + Vector3.new(flatLook.X * 5, 0.05, flatLook.Z * 5)
     visuals.centerDot.CFrame = CFrame.new(dotPos)
 end
 
--- Update all players
 local function updateAllPlayers()
     for _, player in ipairs(Players:GetPlayers()) do
         updatePlayerVisuals(player)
     end
 end
 
--- Connect events
 Players.PlayerAdded:Connect(function(player)
     player.CharacterAdded:Connect(function()
         wait(0.1)
@@ -235,7 +215,6 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
     if playerVisuals[player] then
-        -- Remove visuals
         for _, line in ipairs(playerVisuals[player].fanLines) do
             line:Destroy()
         end
@@ -249,7 +228,6 @@ Players.PlayerRemoving:Connect(function(player)
     end
 end)
 
--- Main loop
 RunService.Heartbeat:Connect(function()
     updateAllPlayers()
 end)
